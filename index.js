@@ -4,7 +4,7 @@ import fs from "fs";
 import http from "http";
 
 // CONSTANTS AND FUNCTION DEFINITIONS
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT;
 const DbFile = "data.json";
 let database = readDatabase();
 
