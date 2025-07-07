@@ -63,6 +63,15 @@ function decrypt(encryptedHex, key, ivHex, tagHex) {
 
 // PROGRAM
 http.createServer((req, res) => {
+    if (req.method === "OPTIONS") {
+    res.writeHead(200, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Max-Age": 86400,
+    });
+    return res.end();
+}
     if (req.method === "GET" && req.url === "/db") {
         const file = readDatabase();
         const response = JSON.stringify(file);
