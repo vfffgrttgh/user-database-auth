@@ -99,7 +99,7 @@ http.createServer((req, res) => {
 
             if (count >= 3) {
                 const newUser = {
-                    username: values,
+                    msg: values,
                     iv: iv.toString("hex"),
                     key: key.toString("hex"),
                 }
