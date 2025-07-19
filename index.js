@@ -2,6 +2,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import http from "http";
+import { Server } from "socket.io";
 
 // CONSTANTS AND FUNCTION DEFINITIONS
 const PORT = process.env.PORT;
@@ -38,12 +39,13 @@ function updateDatabase(data) {
     if (typeof data === "string") {
         return "Invalid JSON";
     } else {
-        database.push(data);
+        const db = readDatabase();
+        db.push(data);
         writeDatabase(database);
     }
 }
 
-function encrypt(text, key ,iv) {
+function encrypt(text, key, iv) {
     const cipher = crypto.createCipheriv("aes-128-ccm", key, iv, { authTagLength: 16 });
     const encryption = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
     const tag = cipher.getAuthTag();
@@ -62,16 +64,16 @@ function decrypt(encryptedHex, key, ivHex, tagHex) {
 }
 
 // PROGRAM
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
     if (req.method === "OPTIONS") {
-    res.writeHead(200, {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Access-Control-Max-Age": 86400,
-    });
-    return res.end();
-}
+        res.writeHead(200, {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": 86400,
+        });
+        return res.end();
+    }
     if (req.method === "GET" && req.url === "/db") {
         const file = readDatabase();
         const response = JSON.stringify(file);
@@ -95,15 +97,19 @@ http.createServer((req, res) => {
 
             const key = crypto.randomBytes(16);
             const iv = crypto.randomBytes(12);
-            const values = encrypt(parsed.msg, key, iv);
+            const msg = encrypt(parsed.msg, key, iv);
 
             if (count >= 3) {
                 const newUser = {
-                    msg: values,
+                    msg: msg,
                     iv: iv.toString("hex"),
                     key: key.toString("hex"),
                 }
                 updateDatabase(newUser);
+
+                // Emit the message to all connected clients
+                io.emit("new-message", newUser);
+
                 res.writeHead(200, HEADERS);
                 res.end(JSON.stringify({ message: "Added item successfully..." }))
             } else {
@@ -130,13 +136,28 @@ http.createServer((req, res) => {
             if (count >= 3) {
                 writeDatabase([]);
                 res.writeHead(200, HEADERS);
-                res.end(JSON.stringify({ mesage: "Deleted database..." }));
+                res.end(JSON.stringify({ message: "Deleted database..." }));
             } else {
                 res.writeHead(401, HEADERS);
                 res.end(JSON.stringify({ message: "Unauthorized Access..." }));
             }
         });
     }
-}).listen(PORT, "0.0.0.0", () => {
+});
+
+const io = new Server(server, {
+    cors: { origin: "*" },
+});
+
+io.on("connection", socket => {
+    socket.on("message", (message) => {
+        console.log("Received message event (unused):", message);
+    });
+    socket.on("disconnect", () => {
+        console.log("Client disconnected:", socket.id);
+    });
+});
+
+server.listen(PORT,"0.0.0.0", () => {
     console.log(`Listening on http://0.0.0.0:${PORT}`);
 });
