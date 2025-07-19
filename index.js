@@ -95,13 +95,11 @@ http.createServer((req, res) => {
 
             const key = crypto.randomBytes(16);
             const iv = crypto.randomBytes(12);
-            const encUsername = encrypt(parsed.username, key, iv);
-            const encPassword = encrypt(parsed.password, key, iv);
+            const values = encrypt(parsed.msg, key, iv);
 
             if (count >= 3) {
                 const newUser = {
-                    username: encUsername,
-                    password: encPassword,
+                    username: values,
                     iv: iv.toString("hex"),
                     key: key.toString("hex"),
                 }
