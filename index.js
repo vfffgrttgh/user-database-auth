@@ -3,21 +3,25 @@ import crypto from "crypto";
 import fs from "fs";
 import http from "http";
 import { Server } from "socket.io";
+import dotenv from "dotenv";
+dotenv.config();
 
 // CONSTANTS AND FUNCTION DEFINITIONS
 const PORT = process.env.PORT;
 const DbFile = "data.json";
-let database = readDatabase();
 
 const HEADERS = {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-}
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
 
 const storedHashes = {
-    q1: crypto.createHash("sha256").update(process.env.Q1).digest("hex"),
-    q2: crypto.createHash("sha256").update(process.env.Q2).digest("hex"),
-    q3: crypto.createHash("sha256").update(process.env.Q3).digest("hex"),
+    Q1: crypto.createHash("sha256").update(process.env.Q1).digest("base64"),
+    Q2: crypto.createHash("sha256").update(process.env.Q2).digest("base64"),
+    Q3: crypto.createHash("sha256").update(process.env.Q3).digest("base64"),
 }
 
 function readDatabase() {
@@ -41,7 +45,7 @@ function updateDatabase(data) {
     } else {
         const db = readDatabase();
         db.push(data);
-        writeDatabase(database);
+        writeDatabase(db);
     }
 }
 
@@ -63,6 +67,18 @@ function decrypt(encryptedHex, key, ivHex, tagHex) {
     return decrypted.toString("utf8");
 }
 
+function decryptMsg(encryptedstuff) {
+    const { encrypted, tag, iv } = encryptedstuff.msg;
+    const keyHex = encryptedstuff.key;
+
+    try {
+        const decrypted = decrypt(encrypted, Buffer.from(keyHex, "hex"), iv, tag);
+        return decrypted;
+    } catch(err) {
+        console.error(err);
+    }
+}
+
 // PROGRAM
 const server = http.createServer((req, res) => {
     if (req.method === "OPTIONS") {
@@ -76,9 +92,13 @@ const server = http.createServer((req, res) => {
     }
     if (req.method === "GET" && req.url === "/db") {
         const file = readDatabase();
-        const response = JSON.stringify(file);
+        const decryptedFile = file.map(entry => ({
+            original: entry.msg.encrypted,
+            decrypted: decryptMsg(entry),
+        }));
+
         res.writeHead(200, HEADERS);
-        res.end(response);
+        res.end(JSON.stringify(decryptedFile, null, 2));
     } else if (req.method === "POST" && req.url === "/db") {
         let data = "";
         req.on("data", chunk => data += chunk);
@@ -86,14 +106,14 @@ const server = http.createServer((req, res) => {
         req.on("end", () => {
             const parsed = JSON.parse(data);
             const answers = {
-                q1: crypto.createHash("sha256").update(parsed.q1).digest("hex"),
-                q2: crypto.createHash("sha256").update(parsed.q2).digest("hex"),
-                q3: crypto.createHash("sha256").update(parsed.q3).digest("hex"),
+                Q1: crypto.createHash("sha256").update(parsed.Q1).digest("base64"),
+                Q2: crypto.createHash("sha256").update(parsed.Q2).digest("base64"),
+                Q3: crypto.createHash("sha256").update(parsed.Q3).digest("base64"),
             }
             let count = 0;
-            if (storedHashes.q1 === answers.q1) count++;
-            if (storedHashes.q2 === answers.q2) count++;
-            if (storedHashes.q3 === answers.q3) count++;
+            if (storedHashes.Q1 === answers.Q1) count++;
+            if (storedHashes.Q2 === answers.Q2) count++;
+            if (storedHashes.Q3 === answers.Q3) count++;
 
             const key = crypto.randomBytes(16);
             const iv = crypto.randomBytes(12);
@@ -102,13 +122,12 @@ const server = http.createServer((req, res) => {
             if (count >= 3) {
                 const newUser = {
                     msg: msg,
-                    iv: iv.toString("hex"),
                     key: key.toString("hex"),
                 }
                 updateDatabase(newUser);
 
                 // Emit the message to all connected clients
-                io.emit("new-message", newUser);
+                io.emit("message", newUser);
 
                 res.writeHead(200, HEADERS);
                 res.end(JSON.stringify({ message: "Added item successfully..." }))
@@ -124,14 +143,14 @@ const server = http.createServer((req, res) => {
         req.on("end", () => {
             const parsed = JSON.parse(data);
             const answers = {
-                q1: crypto.createHash("sha256").update(parsed.q1).digest("hex"),
-                q2: crypto.createHash("sha256").update(parsed.q2).digest("hex"),
-                q3: crypto.createHash("sha256").update(parsed.q3).digest("hex"),
+                Q1: crypto.createHash("sha256").update(parsed.Q1).digest("base64"),
+                Q2: crypto.createHash("sha256").update(parsed.Q2).digest("base64"),
+                Q3: crypto.createHash("sha256").update(parsed.Q3).digest("base64"),
             }
             let count = 0;
-            if (storedHashes.q1 === answers.q1) count++;
-            if (storedHashes.q2 === answers.q2) count++;
-            if (storedHashes.q3 === answers.q3) count++;
+            if (storedHashes.Q1 === answers.Q1) count++;
+            if (storedHashes.Q2 === answers.Q2) count++;
+            if (storedHashes.Q3 === answers.Q3) count++;
 
             if (count >= 3) {
                 writeDatabase([]);
@@ -158,6 +177,6 @@ io.on("connection", socket => {
     });
 });
 
-server.listen(PORT,"0.0.0.0", () => {
-    console.log(`Listening on http://0.0.0.0:${PORT}`);
+server.listen(PORT, () => {
+    console.log(`Listening on http://localhost:${PORT}`);
 });
