@@ -76,7 +76,6 @@ function decryptMsg(encryptedstuff) {
         return decrypted;
     } catch(err) {
         console.error(err);
-        return "DECRYPTED [ERROR]"
     }
 }
 
@@ -178,6 +177,6 @@ io.on("connection", socket => {
     });
 });
 
-server.listen(PORT,"0.0.0.0", () => {
+server.listen(PORT, () => {
     console.log(`Listening on http://localhost:${PORT}`);
 });
